@@ -1,5 +1,6 @@
 import contextlib
 from typing import (
+    Dict,
     Iterator,
     Tuple,
     Type,
@@ -183,6 +184,10 @@ class BaseState(Configurable, StateAPI):
 
     def get_witness_hashes(self):
         return set(self._account_db.get_read_node_hashes())
+
+    def get_witness_metadata(self) -> Dict[Address, Tuple[bool, Tuple[int]]]:
+        # which addresses were accessed, and did we access their bytecode and which storage slots?
+        return self._account_db.get_witness_metadata()
 
     #
     # Access self.prev_hashes (Read-only)

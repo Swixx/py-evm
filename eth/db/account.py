@@ -16,6 +16,7 @@ from eth_utils import (
     encode_hex,
     get_extended_debug_logger,
     to_checksum_address,
+    to_dict,
     to_tuple,
     ValidationError,
 )
@@ -125,6 +126,8 @@ class AccountDB(AccountDatabaseAPI):
         self._account_stores: Dict[Address, AccountStorageDatabaseAPI] = {}
         self._dirty_accounts: Set[Address] = set()
         self._root_hash_at_last_persist = state_root
+        self._accessed_accounts: Set[Address] = set()
+        self._accessed_bytecodes: Set[Address] = set()
 
     @property
     def state_root(self) -> Hash32:
@@ -262,6 +265,9 @@ class AccountDB(AccountDatabaseAPI):
                 return self._journaldb[code_hash]
             except KeyError:
                 raise MissingBytecode(code_hash) from KeyError
+            finally:
+                if code_hash in self.get_read_node_hashes():
+                    self._accessed_bytecodes.add(address)
 
     def set_code(self, address: Address, code: bytes) -> None:
         validate_canonical_address(address, title="Storage Address")
@@ -321,6 +327,7 @@ class AccountDB(AccountDatabaseAPI):
     # Internal
     #
     def _get_encoded_account(self, address: Address, from_journal: bool=True) -> bytes:
+        self._accessed_accounts.add(address)
         lookup_trie = self._journaltrie if from_journal else self._trie_cache
 
         try:
@@ -423,6 +430,9 @@ class AccountDB(AccountDatabaseAPI):
         # reset local storage trackers
         self._account_stores = {}
         self._dirty_accounts = set()
+        self._accessed_accounts = set()
+        self._accessed_bytecodes = set()
+        self._account_cache.clear()
 
         # persist accounts
         self._validate_generated_root()
@@ -435,6 +445,16 @@ class AccountDB(AccountDatabaseAPI):
 
     def get_read_node_hashes(self):
         return self._raw_store_db.keys_read
+
+    @to_dict
+    def get_witness_metadata(self) -> Dict[Address, Tuple[bool, Tuple[int]]]:
+        for address in self._accessed_accounts:
+            did_access_bytecode = address in self._accessed_bytecodes
+            if address in self._account_stores:
+                accessed_storage_slots = self._account_stores[address].get_accessed_slots()
+            else:
+                accessed_storage_slots = tuple()
+            yield address, (did_access_bytecode, accessed_storage_slots)
 
     def _validate_generated_root(self) -> None:
         db_diff = self._journaldb.diff()

@@ -305,8 +305,17 @@ class VM(Configurable, VirtualMachineAPI):
 
     def _save_witness(self, final_block: BlockAPI) -> None:
         witness_hashes = self.state.get_witness_hashes()
-        self.logger.debug("%s reads %d unique node hashes", final_block, len(witness_hashes))
+        witness_metadata = self.state.get_witness_metadata()
+        self.logger.debug(
+            "%s reads %d unique node hashes, %d addresses, %d bytecodes, and %d storage slots",
+            final_block,
+            len(witness_hashes),
+            len(witness_metadata),
+            len([1 for bytecode_accessed, _slots in witness_metadata.values() if bytecode_accessed]),
+            sum(len(slots_accessed) for _code, slots_accessed in witness_metadata.values()),
+        )
         self.chaindb.db[b'witnesshashes:'+final_block.hash] = b''.join(witness_hashes)
+        #TODO log if any nodes are not covered by addresses, slots, and bytecodes
 
     def set_block_transactions(self,
                                base_block: BlockAPI,

@@ -203,3 +203,45 @@ def test_account_db_read_then_update_then_make_root_then_read(account_db):
     account_db.persist()
     # if you start caching read tries, then you might get this answer wrong:
     assert account_db.get_storage(ADDRESS, 1) == 3
+
+
+def test_witness_metadata(account_db):
+    account_db.get_balance(ADDRESS)
+    account_db.get_code(ADDRESS)
+    account_db.set_storage(OTHER_ADDRESS, 1, 321)
+    THIRD_ADDRESS = b'c'*20
+    account_db.set_code(THIRD_ADDRESS, b'fake')
+    account_db.get_code(THIRD_ADDRESS)
+
+    metadata = account_db.get_witness_metadata()
+
+    # addresses were accessed
+    assert ADDRESS in metadata
+    assert OTHER_ADDRESS in metadata
+    assert THIRD_ADDRESS in metadata
+
+    # note that although code was accessed, it was empty, and the empty hash is well-known
+    assert metadata[ADDRESS] == (False, ())
+    # setting storage data requires reading storage data, so a set is also a read
+    assert metadata[OTHER_ADDRESS] == (False, (1,))
+    # note that although code was set, it was in cache, so doesn't need to be in witness
+    assert metadata[THIRD_ADDRESS] == (False, ())
+
+    # reset metadata trackers
+    account_db.persist()
+    assert len(account_db.get_witness_metadata()) == 0
+
+    account_db.get_storage(OTHER_ADDRESS, 1)
+    account_db.get_code(THIRD_ADDRESS)
+
+    metadata_round2 = account_db.get_witness_metadata()
+
+    # addresses were accessed
+    assert OTHER_ADDRESS in metadata_round2
+    assert THIRD_ADDRESS in metadata_round2
+    # this address was not accessed this round
+    assert ADDRESS not in metadata_round2
+
+    assert metadata_round2[OTHER_ADDRESS] == (False, (1,))
+    # Since code was not set this round, the code read must be included in the witness
+    assert metadata_round2[THIRD_ADDRESS] == (True, ())
