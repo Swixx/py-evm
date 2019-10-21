@@ -21,6 +21,7 @@ from eth_typing import (
     Hash32,
 )
 from eth_utils import (
+    encode_hex,
     ValidationError,
 )
 import rlp
@@ -295,10 +296,17 @@ class VM(Configurable, VirtualMachineAPI):
 
         final_block = self.finalize_block(packed_block)
 
+        self._save_witness(final_block)
+
         # Perform validation
         self.validate_block(final_block)
 
         return final_block
+
+    def _save_witness(self, final_block: BlockAPI) -> None:
+        witness_hashes = self.state.get_witness_hashes()
+        self.logger.debug("%s reads %d unique node hashes", final_block, len(witness_hashes))
+        self.chaindb.db[b'witnesshashes:'+final_block.hash] = b''.join(witness_hashes)
 
     def set_block_transactions(self,
                                base_block: BlockAPI,

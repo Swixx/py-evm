@@ -35,6 +35,9 @@ from eth.constants import (
     BLANK_ROOT_HASH,
     EMPTY_SHA3,
 )
+from eth.db.accesslog import (
+    KeyAccessLoggerDB,
+)
 from eth.db.batch import (
     BatchDB,
 )
@@ -110,12 +113,13 @@ class AccountDB(AccountDatabaseAPI):
         AccountDB synchronizes the snapshot/revert/persist of both of the
         journals.
         """
-        self._raw_store_db = db
-        self._batchdb = BatchDB(db)
-        self._batchtrie = BatchDB(db, read_through_deletes=True)
+        self._raw_store_db = KeyAccessLoggerDB(db)
+        self._batchdb = BatchDB(self._raw_store_db)
+        self._batchtrie = BatchDB(self._raw_store_db, read_through_deletes=True)
         self._journaldb = JournalDB(self._batchdb)
         self._trie = HashTrie(HexaryTrie(self._batchtrie, state_root, prune=True))
-        self._trie_cache = CacheDB(self._trie)
+        self._trie_logger = KeyAccessLoggerDB(self._trie)
+        self._trie_cache = CacheDB(self._trie_logger)
         self._journaltrie = JournalDB(self._trie_cache)
         self._account_cache = LRU(2048)
         self._account_stores: Dict[Address, AccountStorageDatabaseAPI] = {}
@@ -428,6 +432,9 @@ class AccountDB(AccountDatabaseAPI):
             self._batchtrie.commit_to(write_batch, apply_deletes=False)
             self._batchdb.commit_to(write_batch, apply_deletes=False)
         self._root_hash_at_last_persist = new_root_hash
+
+    def get_read_node_hashes(self):
+        return self._raw_store_db.keys_read
 
     def _validate_generated_root(self) -> None:
         db_diff = self._journaldb.diff()

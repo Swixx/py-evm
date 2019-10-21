@@ -29,4 +29,5 @@ class BaseBlock(Configurable, BlockAPI):
         return f'<{self.__class__.__name__}(#{str(self)})>'
 
     def __str__(self) -> str:
-        return f"Block #{self.number}"
+        hash_start = self.hash[:3].hex()
+        return f"Block #{self.number}-0x{hash_start}..."
