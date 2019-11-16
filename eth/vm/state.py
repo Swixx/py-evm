@@ -179,8 +179,8 @@ class BaseState(Configurable, StateAPI):
     def lock_changes(self) -> None:
         self._account_db.lock_changes()
 
-    def persist(self) -> None:
-        self._account_db.persist()
+    def persist(self) -> Dict[Address, Tuple[bool, Tuple[int]]]:
+        return self._account_db.persist()
 
     def get_witness_hashes(self):
         return set(self._account_db.get_read_node_hashes())

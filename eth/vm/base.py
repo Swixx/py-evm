@@ -4,6 +4,7 @@ import logging
 from typing import (
     Any,
     ClassVar,
+    Dict,
     Iterable,
     Iterator,
     Optional,
@@ -296,16 +297,17 @@ class VM(Configurable, VirtualMachineAPI):
 
         final_block = self.finalize_block(packed_block)
 
-        self._save_witness(final_block)
-
         # Perform validation
         self.validate_block(final_block)
 
         return final_block
 
-    def _save_witness(self, final_block: BlockAPI) -> None:
+    def _save_witness(
+            self,
+            final_block: BlockAPI,
+            witness_metadata: Dict[Address, Tuple[bool, Tuple[int]]]) -> None:
+
         witness_hashes = self.state.get_witness_hashes()
-        witness_metadata = self.state.get_witness_metadata()
         self.logger.debug(
             "%s reads %d unique node hashes, %d addresses, %d bytecodes, and %d storage slots",
             final_block,
@@ -374,9 +376,13 @@ class VM(Configurable, VirtualMachineAPI):
 
         # We need to call `persist` here since the state db batches
         # all writes until we tell it to write to the underlying db
-        self.state.persist()
+        witness_metadata = self.state.persist()
 
-        return block.copy(header=block.header.copy(state_root=self.state.state_root))
+        final_block = block.copy(header=block.header.copy(state_root=self.state.state_root))
+
+        self._save_witness(final_block, witness_metadata)
+
+        return final_block
 
     def pack_block(self, block: BlockAPI, *args: Any, **kwargs: Any) -> BlockAPI:
         if 'uncles' in kwargs:

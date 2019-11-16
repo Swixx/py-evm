@@ -427,6 +427,9 @@ class AccountDB(AccountDatabaseAPI):
                     f"is missing for hash 0x{new_root.hex()}."
                 )
 
+        # make copy of witness metadata before clearing
+        witness_metadata = self.get_witness_metadata()
+
         # reset local storage trackers
         self._account_stores = {}
         self._dirty_accounts = set()
@@ -442,6 +445,8 @@ class AccountDB(AccountDatabaseAPI):
             self._batchtrie.commit_to(write_batch, apply_deletes=False)
             self._batchdb.commit_to(write_batch, apply_deletes=False)
         self._root_hash_at_last_persist = new_root_hash
+
+        return witness_metadata
 
     def get_read_node_hashes(self):
         return self._raw_store_db.keys_read
