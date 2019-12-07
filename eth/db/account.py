@@ -114,12 +114,12 @@ class AccountDB(AccountDatabaseAPI):
         AccountDB synchronizes the snapshot/revert/persist of both of the
         journals.
         """
-        self._raw_store_db = KeyAccessLoggerDB(db)
+        self._raw_store_db = KeyAccessLoggerDB(db, log_missing_keys=False)
         self._batchdb = BatchDB(self._raw_store_db)
         self._batchtrie = BatchDB(self._raw_store_db, read_through_deletes=True)
         self._journaldb = JournalDB(self._batchdb)
         self._trie = HashTrie(HexaryTrie(self._batchtrie, state_root, prune=True))
-        self._trie_logger = KeyAccessLoggerDB(self._trie)
+        self._trie_logger = KeyAccessLoggerDB(self._trie, log_missing_keys=False)
         self._trie_cache = CacheDB(self._trie_logger)
         self._journaltrie = JournalDB(self._trie_cache)
         self._account_cache = LRU(2048)
